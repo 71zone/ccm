@@ -10,7 +10,8 @@
     "test:watch": "turbo test:watch",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "clean": "turbo clean && rm -rf node_modules"
+    "clean": "turbo clean && rm -rf node_modules",
+    "release": "tsx scripts/release.ts"
   },
   "keywords": [
     "claude",
@@ -29,6 +30,7 @@
   "devDependencies": {
     "@types/node": "^25.0.9",
     "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
     "turbo": "^2.7.5",
     "typescript": "^5.9.3",
     "vitest": "^4.0.17"
