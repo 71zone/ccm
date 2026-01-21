@@ -93,36 +93,60 @@ acme (acme/claude-toolkit)
 
 ### `ccm use [alias]`
 
-Interactive asset picker. Without alias, prompts for repository selection first.
+Interactive asset picker with grouped selection (select all by category). Without alias, prompts for repository selection first.
 
 ```bash
 $ ccm use acme
 
-  ▾ agents/
-    [x] coder.md
-    [ ] reviewer.md
-  ▾ skills/
-    [x] coding/SKILL.md
-    [ ] debugging/SKILL.md
-  ▾ commands/
-    [ ] deploy.md
-  ▾ mcp/
-    [ ] github.json
+◆ Select assets to link (space to toggle, enter to confirm)
+│ ◻ agents (select all)
+│   ◻ coder.md
+│   ◻ reviewer.md
+│ ◻ skills (select all)
+│   ◻ coding
+│   ◻ debugging
+│ ◻ commands (select all)
+│   ◻ deploy.md
 
-  ↑↓ navigate  space toggle  enter sync  q cancel
-
-✓ Linked acme-coder.md → ~/.claude/agents/
-✓ Linked acme-coding → ~/.claude/skills/
+✓ Linked acme-coder.md
+✓ Linked acme-coding
 ```
 
-### `ccm unuse <alias>:<path>`
-
-Remove a specific selection and its symlink.
+For MCP configs, servers are selected individually:
 
 ```bash
+◆ Select servers from mcp.json
+│ ◻ servers (select all)
+│   ◻ github
+│   ◻ filesystem
+│   ◻ postgres
+
+✓ Staged MCP server: github
+✓ Staged MCP server: filesystem
+
+Run `ccm mcp sync` to apply staged MCP servers
+```
+
+### `ccm unuse [alias:path]`
+
+Interactive unlink picker. Without arguments, shows grouped selection of all linked assets.
+
+```bash
+# Interactive mode (default)
+$ ccm unuse
+
+◆ Select assets to unlink:
+│ ◻ acme
+│   ◻ agent/coder
+│   ◻ skill/coding
+│ ◻ myco
+│   ◻ command/deploy
+
+# Unlink specific asset
 $ ccm unuse acme:agents/coder.md
 
-✓ Unlinked acme-coder.md
+# Unlink everything
+$ ccm unuse --all
 ```
 
 ### `ccm status`
@@ -137,8 +161,9 @@ agents/
   myco-writer.md     ✗ broken
 skills/
   acme-coding       ✓
-mcp/
-  (staged) acme:github.json, myco:filesystem.json
+mcp/ (staged)
+  acme: github, filesystem
+  myco: postgres
 
 Run `ccm doctor cure` to fix broken links
 Run `ccm mcp sync` to apply staged MCP configs
@@ -236,7 +261,7 @@ Fallback: parse YAML frontmatter (`tools`/`model` fields = Agent).
 - **Symlinks** for live updates (edits in source repos propagate automatically)
 - **`git fetch && git reset --hard origin/<branch>`** for updates
 - **Flat output structure** with namespace prefix (e.g., `acme-coder.md`)
-- **MCP staging** - MCP configs are staged then merged on `ccm mcp sync`
+- **Per-server MCP staging** - Individual MCP servers are staged (not whole files), then merged on `ccm mcp sync`
 
 ## Development
 
