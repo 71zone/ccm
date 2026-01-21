@@ -28,11 +28,11 @@ ccm status
 Clone a repository and register it as a source.
 
 ```bash
-$ ccm add https://github.com/nguyenhoangvanlong/claude-code-super-set
+$ ccm add https://github.com/acme/claude-toolkit
 
-✓ Cloned to ~/.local/share/ccm/repos/nguy
+✓ Cloned to ~/.local/share/ccm/repos/acme
 ✓ Detected: 3a 5s 2c 1m
-✓ Registered as "nguy"
+✓ Registered as "acme"
 ```
 
 ### `ccm list` (alias: `ccm ls`)
@@ -42,8 +42,8 @@ Show all registered repositories.
 ```bash
 $ ccm list
 
-  nguy  github.com/nguyenhoangvanlong/claude-code-super-set  3a  5s  2c  1m
-  8bu   github.com/8bu/dotclaude                             1a  0s  4c  0m
+  acme  github.com/acme/claude-toolkit  3a  5s  2c  1m
+  myco  github.com/myco/dotclaude        1a  0s  4c  0m
 ```
 
 ### `ccm remove <alias>` (alias: `ccm rm`)
@@ -51,7 +51,7 @@ $ ccm list
 Remove a repository and unlink all its assets.
 
 ```bash
-$ ccm remove nguy
+$ ccm remove acme
 
 Unlinked 4 assets. Removed repository.
 ```
@@ -68,7 +68,7 @@ $ ccm update
 $ ccm update -a
 
 # Updates specific repo
-$ ccm update nguy
+$ ccm update acme
 ```
 
 ### `ccm show <alias>`
@@ -76,9 +76,9 @@ $ ccm update nguy
 Display available assets in a repository.
 
 ```bash
-$ ccm show nguy
+$ ccm show acme
 
-nguy (nguyenhoangvanlong/claude-code-super-set)
+acme (acme/claude-toolkit)
 ├── agents/
 │   ├── coder.md
 │   └── reviewer.md
@@ -96,7 +96,7 @@ nguy (nguyenhoangvanlong/claude-code-super-set)
 Interactive asset picker. Without alias, prompts for repository selection first.
 
 ```bash
-$ ccm use nguy
+$ ccm use acme
 
   ▾ agents/
     [x] coder.md
@@ -111,8 +111,8 @@ $ ccm use nguy
 
   ↑↓ navigate  space toggle  enter sync  q cancel
 
-✓ Linked nguy-coder.md → ~/.claude/agents/
-✓ Linked nguy-coding → ~/.claude/skills/
+✓ Linked acme-coder.md → ~/.claude/agents/
+✓ Linked acme-coding → ~/.claude/skills/
 ```
 
 ### `ccm unuse <alias>:<path>`
@@ -120,9 +120,9 @@ $ ccm use nguy
 Remove a specific selection and its symlink.
 
 ```bash
-$ ccm unuse nguy:agents/coder.md
+$ ccm unuse acme:agents/coder.md
 
-✓ Unlinked nguy-coder.md
+✓ Unlinked acme-coder.md
 ```
 
 ### `ccm status`
@@ -133,12 +133,12 @@ Show currently linked assets.
 $ ccm status
 
 agents/
-  nguy-coder.md     ✓
-  8bu-writer.md     ✗ broken
+  acme-coder.md     ✓
+  myco-writer.md     ✗ broken
 skills/
-  nguy-coding       ✓
+  acme-coding       ✓
 mcp/
-  (staged) nguy:github.json, 8bu:filesystem.json
+  (staged) acme:github.json, myco:filesystem.json
 
 Run `ccm doctor cure` to fix broken links
 Run `ccm mcp sync` to apply staged MCP configs
@@ -151,8 +151,8 @@ Check for issues.
 ```bash
 $ ccm doctor
 
-✗ Broken symlink: ~/.claude/agents/8bu-writer.md
-✗ Missing source: 8bu/agents/writer.md (deleted upstream?)
+✗ Broken symlink: ~/.claude/agents/myco-writer.md
+✗ Missing source: myco/agents/writer.md (deleted upstream?)
 ✓ 3 healthy link(s)
 
 Run `ccm doctor cure` to auto-fix
@@ -175,7 +175,7 @@ Preview merged MCP configuration.
 ```bash
 $ ccm mcp show
 
-# Merged from: nguy:github.json, 8bu:filesystem.json
+# Merged from: acme:github.json, myco:filesystem.json
 
 {
   "mcpServers": {
@@ -193,8 +193,8 @@ Build and apply merged MCP config to `~/.claude/mcp.json`.
 $ ccm mcp sync
 
 Preview:
-  + github (from nguy)
-  + filesystem (from 8bu)
+  + github (from acme)
+  + filesystem (from myco)
 
 Apply to ~/.claude/mcp.json? [y/N] y
 ✓ Applied
@@ -229,13 +229,13 @@ Fallback: parse YAML frontmatter (`tools`/`model` fields = Agent).
 
 - Username ≤ 4 chars → use as-is
 - Else → first 4 chars
-- Collision → append number (nguy, nguy2)
+- Collision → append number (acme, acme2)
 
 ## How It Works
 
 - **Symlinks** for live updates (edits in source repos propagate automatically)
 - **`git fetch && git reset --hard origin/<branch>`** for updates
-- **Flat output structure** with namespace prefix (e.g., `nguy-coder.md`)
+- **Flat output structure** with namespace prefix (e.g., `acme-coder.md`)
 - **MCP staging** - MCP configs are staged then merged on `ccm mcp sync`
 
 ## Development
