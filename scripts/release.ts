@@ -53,17 +53,10 @@ const corePkg = readJson(CORE_PKG);
 corePkg.version = version;
 writeJson(CORE_PKG, corePkg);
 
-// Update cli package.json
+// Update cli package.json (keep workspace:* - pnpm handles version at publish time)
 log("Updating packages/cli/package.json");
 const cliPkg = readJson(CLI_PKG);
 cliPkg.version = version;
-if (
-  cliPkg.dependencies &&
-  typeof cliPkg.dependencies === "object" &&
-  "@71zone/ccm-core" in cliPkg.dependencies
-) {
-  (cliPkg.dependencies as Record<string, string>)["@71zone/ccm-core"] = version;
-}
 writeJson(CLI_PKG, cliPkg);
 
 // Git operations
