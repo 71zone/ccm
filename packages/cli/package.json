@@ -1,6 +1,6 @@
 {
   "name": "@71zone/ccm",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI tool to manage Claude Code configurations from Git repositories",
   "type": "module",
   "bin": {
