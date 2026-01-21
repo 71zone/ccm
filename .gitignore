@@ -34,3 +34,6 @@ pnpm-debug.log*
 # Temp
 tmp/
 temp/
+
+# Copied README for npm publish
+packages/*/README.md

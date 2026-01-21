@@ -7,10 +7,11 @@
     "ccm": "./dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && cp ../../README.md .",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
