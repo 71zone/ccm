@@ -11,12 +11,13 @@ import {
   getSelections,
   getSelectionsForRepo,
   getStagedMcp,
+  getStagedServersForFile,
   loadConfig,
   removeRepository,
   removeSelection,
   saveConfig,
-  stageMcp,
-  unstageMcp,
+  stageMcpServer,
+  unstageMcpServer,
   updateRepository,
 } from "./config.js";
 import type { CcmConfig, Repository, Selection } from "./types.js";
@@ -238,33 +239,52 @@ describe("config", () => {
   });
 
   describe("MCP staging operations", () => {
-    it("should stage MCP config", async () => {
-      await stageMcp("test", "mcp.json");
+    it("should stage individual MCP server", async () => {
+      await stageMcpServer("test", "mcp.json", "github");
 
       const staged = await getStagedMcp();
       expect(staged).toHaveLength(1);
-      expect(staged[0]).toEqual({ repoAlias: "test", assetPath: "mcp.json" });
+      expect(staged[0]).toEqual({ repoAlias: "test", assetPath: "mcp.json", serverName: "github" });
     });
 
-    it("should not duplicate staged MCP", async () => {
-      await stageMcp("test", "mcp.json");
-      await stageMcp("test", "mcp.json");
+    it("should not duplicate staged MCP server", async () => {
+      await stageMcpServer("test", "mcp.json", "github");
+      await stageMcpServer("test", "mcp.json", "github");
 
       const staged = await getStagedMcp();
       expect(staged).toHaveLength(1);
     });
 
-    it("should unstage MCP config", async () => {
-      await stageMcp("test", "mcp.json");
-      await unstageMcp("test", "mcp.json");
+    it("should stage multiple servers from same file", async () => {
+      await stageMcpServer("test", "mcp.json", "github");
+      await stageMcpServer("test", "mcp.json", "filesystem");
 
       const staged = await getStagedMcp();
-      expect(staged).toHaveLength(0);
+      expect(staged).toHaveLength(2);
+    });
+
+    it("should unstage individual MCP server", async () => {
+      await stageMcpServer("test", "mcp.json", "github");
+      await stageMcpServer("test", "mcp.json", "filesystem");
+      await unstageMcpServer("test", "mcp.json", "github");
+
+      const staged = await getStagedMcp();
+      expect(staged).toHaveLength(1);
+      expect(staged[0]?.serverName).toBe("filesystem");
+    });
+
+    it("should get staged servers for specific file", async () => {
+      await stageMcpServer("test", "mcp.json", "github");
+      await stageMcpServer("test", "mcp.json", "filesystem");
+      await stageMcpServer("test", "other.json", "postgres");
+
+      const servers = await getStagedServersForFile("test", "mcp.json");
+      expect(servers).toEqual(["github", "filesystem"]);
     });
 
     it("should clear all staged MCP", async () => {
-      await stageMcp("test", "mcp1.json");
-      await stageMcp("test", "mcp2.json");
+      await stageMcpServer("test", "mcp1.json", "server1");
+      await stageMcpServer("test", "mcp2.json", "server2");
 
       await clearStagedMcp();
 

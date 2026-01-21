@@ -67,6 +67,18 @@ export interface McpConfig {
 }
 
 /**
+ * A staged MCP server selection
+ */
+export interface StagedMcpServer {
+  /** Repository alias */
+  repoAlias: string;
+  /** Path to the MCP config file within repository */
+  assetPath: string;
+  /** Individual server name to include */
+  serverName: string;
+}
+
+/**
  * CCM configuration state
  */
 export interface CcmConfig {
@@ -74,11 +86,8 @@ export interface CcmConfig {
   repositories: Repository[];
   /** Currently active selections */
   selections: Selection[];
-  /** Staged MCP selections (not yet synced) */
-  stagedMcp: Array<{
-    repoAlias: string;
-    assetPath: string;
-  }>;
+  /** Staged MCP server selections (not yet synced) */
+  stagedMcp: StagedMcpServer[];
 }
 
 /**

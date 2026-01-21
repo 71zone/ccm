@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { getConfigPath } from "./paths.js";
-import type { CcmConfig, Repository, Selection } from "./types.js";
+import type { CcmConfig, Repository, Selection, StagedMcpServer } from "./types.js";
 
 /**
  * Default empty configuration
@@ -38,7 +38,13 @@ export async function loadConfig(): Promise<CcmConfig> {
 
   try {
     const content = await readFile(configPath, "utf-8");
-    return JSON.parse(content) as CcmConfig;
+    const parsed = JSON.parse(content);
+    // Ensure all required fields exist with defaults (for backwards compatibility)
+    return {
+      repositories: parsed.repositories ?? [],
+      selections: parsed.selections ?? [],
+      stagedMcp: parsed.stagedMcp ?? [],
+    };
   } catch {
     return createDefaultConfig();
   }
@@ -162,37 +168,66 @@ export async function getSelectionsForRepo(alias: string): Promise<Selection[]> 
 }
 
 /**
- * Add a staged MCP selection
+ * Stage an individual MCP server
  */
-export async function stageMcp(repoAlias: string, assetPath: string): Promise<void> {
+export async function stageMcpServer(
+  repoAlias: string,
+  assetPath: string,
+  serverName: string
+): Promise<void> {
   const config = await loadConfig();
   const existing = config.stagedMcp.find(
-    (s) => s.repoAlias === repoAlias && s.assetPath === assetPath
+    (s) =>
+      s.repoAlias === repoAlias &&
+      s.assetPath === assetPath &&
+      s.serverName === serverName
   );
 
   if (!existing) {
-    config.stagedMcp.push({ repoAlias, assetPath });
+    config.stagedMcp.push({ repoAlias, assetPath, serverName });
     await saveConfig(config);
   }
 }
 
 /**
- * Remove a staged MCP selection
+ * Unstage an individual MCP server
  */
-export async function unstageMcp(repoAlias: string, assetPath: string): Promise<void> {
+export async function unstageMcpServer(
+  repoAlias: string,
+  assetPath: string,
+  serverName: string
+): Promise<void> {
   const config = await loadConfig();
   config.stagedMcp = config.stagedMcp.filter(
-    (s) => !(s.repoAlias === repoAlias && s.assetPath === assetPath)
+    (s) =>
+      !(
+        s.repoAlias === repoAlias &&
+        s.assetPath === assetPath &&
+        s.serverName === serverName
+      )
   );
   await saveConfig(config);
 }
 
 /**
- * Get all staged MCP selections
+ * Get all staged MCP server selections
  */
-export async function getStagedMcp(): Promise<Array<{ repoAlias: string; assetPath: string }>> {
+export async function getStagedMcp(): Promise<StagedMcpServer[]> {
   const config = await loadConfig();
   return config.stagedMcp;
+}
+
+/**
+ * Get staged servers for a specific MCP file
+ */
+export async function getStagedServersForFile(
+  repoAlias: string,
+  assetPath: string
+): Promise<string[]> {
+  const config = await loadConfig();
+  return config.stagedMcp
+    .filter((s) => s.repoAlias === repoAlias && s.assetPath === assetPath)
+    .map((s) => s.serverName);
 }
 
 /**

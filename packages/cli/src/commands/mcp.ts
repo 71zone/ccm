@@ -11,15 +11,29 @@ const showSubcommand = defineCommand({
     const staged = await getStagedMcp();
 
     if (staged.length === 0) {
-      console.log("\nNo MCP configurations staged.");
-      console.log('Use `ccm use <alias>` to select MCP configs.\n');
+      console.log("\nNo MCP servers staged.");
+      console.log('Use `ccm use <alias>` to select MCP servers.\n');
       return;
     }
 
     const merged = await buildMcpConfig();
 
+    // Group by repo for display
+    const byRepo = new Map<string, string[]>();
+    for (const s of staged) {
+      const key = s.repoAlias;
+      if (!byRepo.has(key)) {
+        byRepo.set(key, []);
+      }
+      byRepo.get(key)?.push(s.serverName);
+    }
+
+    const sources = Array.from(byRepo.entries())
+      .map(([repo, servers]) => `${repo}:[${servers.join(", ")}]`)
+      .join(", ");
+
     console.log();
-    console.log(`# Merged from: ${staged.map((s) => `${s.repoAlias}:${s.assetPath.split("/").pop()}`).join(", ")}`);
+    console.log(`# Staged servers: ${sources}`);
     console.log();
     console.log(JSON.stringify(merged, null, 2));
     console.log();

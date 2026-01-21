@@ -10,6 +10,7 @@ export type {
   McpServerConfig,
   Repository,
   Selection,
+  StagedMcpServer,
 } from "./types.js";
 
 // Paths
@@ -35,12 +36,13 @@ export {
   getSelections,
   getSelectionsForRepo,
   getStagedMcp,
+  getStagedServersForFile,
   loadConfig,
   removeRepository,
   removeSelection,
   saveConfig,
-  stageMcp,
-  unstageMcp,
+  stageMcpServer,
+  unstageMcpServer,
   updateRepository,
 } from "./config.js";
 
@@ -48,7 +50,7 @@ export {
 export { generateAlias, getNamespacedFilename, parseGitHubUrl } from "./alias.js";
 
 // Asset detection
-export { detectAssets, flattenAssets, getAssetCounts } from "./detection.js";
+export { detectAssets, flattenAssets, getAssetCounts, getMcpServers } from "./detection.js";
 
 // Repository management
 export {
@@ -66,8 +68,10 @@ export {
   diagnose,
   getMcpPreview,
   linkAsset,
+  stageMcpServers,
   syncMcp,
   unlinkAsset,
+  unstageMcpServers,
 } from "./linking.js";
 
 // Utilities

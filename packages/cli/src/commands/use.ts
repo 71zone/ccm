@@ -1,47 +1,63 @@
 import { defineCommand } from "citty";
-import { intro, multiselect, outro, select, spinner, isCancel } from "@clack/prompts";
+import { intro, groupMultiselect, multiselect, outro, select, spinner, isCancel, note } from "@clack/prompts";
+import { join } from "node:path";
 import {
   getRepositories,
   getRepository,
   getSelectionsForRepo,
+  getStagedServersForFile,
   linkAsset,
+  getMcpServers,
+  stageMcpServers,
   type Asset,
   type Repository,
 } from "@71zone/ccm-core";
 
 interface AssetOption {
-  value: { asset: Asset; selected: boolean };
+  value: Asset;
   label: string;
   hint?: string;
 }
 
-function buildAssetOptions(repo: Repository, currentSelections: string[]): AssetOption[] {
-  const options: AssetOption[] = [];
+function buildGroupedAssetOptions(
+  repo: Repository,
+  currentSelections: string[]
+): { options: Record<string, AssetOption[]>; initialValues: Asset[] } {
+  const options: Record<string, AssetOption[]> = {};
+  const initialValues: Asset[] = [];
 
-  // Group assets by type
+  // Group assets by type - exclude MCP (handled separately)
   const groups: Record<string, Asset[]> = {
     agents: repo.assets.filter((a) => a.type === "agent"),
     skills: repo.assets.filter((a) => a.type === "skill"),
     commands: repo.assets.filter((a) => a.type === "command"),
-    mcp: repo.assets.filter((a) => a.type === "mcp"),
   };
 
   for (const [groupName, assets] of Object.entries(groups)) {
     if (assets.length === 0) continue;
 
+    options[groupName] = [];
+
     for (const asset of assets) {
       const isSelected = currentSelections.includes(asset.path);
-      const filename = asset.path.split("/").pop() ?? asset.name;
+      // For skills, use asset.name (the folder name); for others, extract from path
+      const displayName = asset.type === "skill"
+        ? asset.name
+        : (asset.path.split("/").pop() ?? asset.name);
 
-      options.push({
-        value: { asset, selected: isSelected },
-        label: `${groupName}/${filename}`,
+      options[groupName].push({
+        value: asset,
+        label: displayName,
         hint: isSelected ? "currently linked" : undefined,
       });
+
+      if (isSelected) {
+        initialValues.push(asset);
+      }
     }
   }
 
-  return options;
+  return { options, initialValues };
 }
 
 export const useCommand = defineCommand({
@@ -114,60 +130,114 @@ export const useCommand = defineCommand({
     const currentSelections = await getSelectionsForRepo(repo.alias);
     const currentPaths = currentSelections.map((s) => s.assetPath);
 
-    // Build options with current selection state
-    const options = buildAssetOptions(repo, currentPaths);
-
-    // Show multiselect picker
-    const selected = await multiselect({
-      message: "Select assets to link (space to toggle, enter to confirm)",
-      options,
-      initialValues: options.filter((o) => o.value.selected).map((o) => o.value),
-      required: false,
-    });
-
-    if (isCancel(selected)) {
-      outro("Cancelled");
-      return;
-    }
-
-    const selectedAssets = (selected as Array<{ asset: Asset; selected: boolean }>).map((s) => s.asset);
-
-    if (selectedAssets.length === 0) {
-      outro("No assets selected");
-      return;
-    }
-
-    // Link selected assets
-    const s = spinner();
-    s.start("Linking assets");
+    // Build grouped options for non-MCP assets
+    const { options, initialValues } = buildGroupedAssetOptions(repo, currentPaths);
+    const mcpAssets = repo.assets.filter((a) => a.type === "mcp");
 
     const results: string[] = [];
+    let hasMcpSelections = false;
 
-    for (const asset of selectedAssets) {
-      try {
-        const selection = await linkAsset(repo.alias, asset);
-        if (asset.type === "mcp") {
-          results.push(`✓ Staged ${repo.alias}:${asset.path} for MCP sync`);
-        } else {
-          results.push(`✓ Linked ${selection.linkedPath.split("/").pop()}`);
+    // Step 1: Select non-MCP assets if any (using groupMultiselect)
+    const hasNonMcpAssets = Object.keys(options).length > 0;
+    if (hasNonMcpAssets) {
+      const selected = await groupMultiselect({
+        message: "Select assets to link (space to toggle, enter to confirm)",
+        options,
+        initialValues,
+        required: false,
+      });
+
+      if (isCancel(selected)) {
+        outro("Cancelled");
+        return;
+      }
+
+      const selectedAssets = selected as Asset[];
+
+      // Link selected non-MCP assets
+      if (selectedAssets.length > 0) {
+        const s = spinner();
+        s.start("Linking assets");
+
+        for (const asset of selectedAssets) {
+          try {
+            const selection = await linkAsset(repo.alias, asset);
+            results.push(`✓ Linked ${selection.linkedPath.split("/").pop()}`);
+          } catch (error) {
+            results.push(`✗ Failed to link ${asset.path}: ${error instanceof Error ? error.message : String(error)}`);
+          }
         }
-      } catch (error) {
-        results.push(`✗ Failed to link ${asset.path}: ${error instanceof Error ? error.message : String(error)}`);
+
+        s.stop("Linked assets");
       }
     }
 
-    s.stop("Done");
+    // Step 2: Handle MCP assets - show individual server picker for each
+    if (mcpAssets.length > 0) {
+      note("MCP configurations found. Select individual servers to stage.");
 
-    for (const result of results) {
-      console.log(`  ${result}`);
+      for (const mcpAsset of mcpAssets) {
+        const sourcePath = join(repo.localPath, mcpAsset.path);
+        const serverNames = await getMcpServers(sourcePath);
+
+        if (serverNames.length === 0) {
+          results.push(`⚠ No servers found in ${mcpAsset.path}`);
+          continue;
+        }
+
+        // Get currently staged servers for this file
+        const stagedServers = await getStagedServersForFile(repo.alias, mcpAsset.path);
+
+        const fileName = mcpAsset.path.split("/").pop() ?? mcpAsset.path;
+
+        // Use groupMultiselect with a single "servers" group for select-all behavior
+        const serverOptions: Record<string, Array<{ value: string; label: string; hint?: string }>> = {
+          servers: serverNames.map((name) => ({
+            value: name,
+            label: name,
+            hint: stagedServers.includes(name) ? "staged" : undefined,
+          })),
+        };
+
+        const selectedServers = await groupMultiselect({
+          message: `Select servers from ${fileName}`,
+          options: serverOptions,
+          initialValues: stagedServers,
+          required: false,
+        });
+
+        if (isCancel(selectedServers)) {
+          continue; // Skip this MCP file but continue with others
+        }
+
+        const servers = selectedServers as string[];
+        if (servers.length > 0) {
+          await stageMcpServers(repo.alias, mcpAsset.path, servers);
+          hasMcpSelections = true;
+          for (const server of servers) {
+            results.push(`✓ Staged MCP server: ${server}`);
+          }
+        }
+      }
     }
 
-    const mcpCount = selectedAssets.filter((a) => a.type === "mcp").length;
-    if (mcpCount > 0) {
+    // Show results
+    if (results.length > 0) {
       console.log();
-      console.log("  Run `ccm mcp sync` to apply MCP configurations");
+      for (const result of results) {
+        console.log(`  ${result}`);
+      }
     }
 
-    outro("Assets linked successfully");
+    if (hasMcpSelections) {
+      console.log();
+      console.log("  Run `ccm mcp sync` to apply staged MCP servers");
+    }
+
+    if (results.length === 0) {
+      outro("No assets selected");
+    } else {
+      outro("Done");
+    }
   },
 });

@@ -25,10 +25,10 @@ vi.mock("./paths.js", () => ({
 }));
 
 // Import after mocking
-const { linkAsset, unlinkAsset, diagnose, cure, buildMcpConfig, syncMcp } = await import(
+const { linkAsset, unlinkAsset, diagnose, cure, buildMcpConfig, syncMcp, stageMcpServers, unstageMcpServers } = await import(
   "./linking.js"
 );
-const { addRepository, addSelection, getSelections, stageMcp, getStagedMcp } = await import(
+const { addRepository, addSelection, getSelections, stageMcpServer, getStagedMcp } = await import(
   "./config.js"
 );
 
@@ -105,21 +105,14 @@ describe("linking", () => {
       expect(existsSync(selection.linkedPath)).toBe(true);
     });
 
-    it("should stage MCP assets instead of linking", async () => {
+    it("should throw error for MCP assets (must use stageMcpServers)", async () => {
       // Create source file
       const mcpContent = JSON.stringify({ mcpServers: { github: {} } });
       await writeFile(join(testRepo.localPath, "mcp.json"), mcpContent);
 
       const asset: Asset = { type: "mcp", path: "mcp.json", name: "mcp" };
 
-      const selection = await linkAsset("test", asset);
-
-      expect(selection.type).toBe("mcp");
-      expect(selection.linkedPath).toBe(""); // MCP doesn't have direct link
-
-      const staged = await getStagedMcp();
-      expect(staged).toHaveLength(1);
-      expect(staged[0]).toEqual({ repoAlias: "test", assetPath: "mcp.json" });
+      await expect(linkAsset("test", asset)).rejects.toThrow("MCP assets should be staged");
     });
 
     it("should throw error for non-existent source", async () => {
@@ -216,32 +209,37 @@ describe("linking", () => {
   });
 
   describe("MCP operations", () => {
-    it("should build merged MCP config", async () => {
-      // Create MCP file
+    it("should build merged MCP config with selected servers only", async () => {
+      // Create MCP file with multiple servers
       const mcpContent = {
         mcpServers: {
           github: { command: "npx", args: ["-y", "@mcp/github"] },
+          filesystem: { command: "npx", args: ["-y", "@mcp/filesystem"] },
+          postgres: { command: "npx", args: ["-y", "@mcp/postgres"] },
         },
       };
       await writeFile(join(testRepo.localPath, "mcp.json"), JSON.stringify(mcpContent));
 
-      // Stage it
-      await stageMcp("test", "mcp.json");
+      // Stage only github and filesystem
+      await stageMcpServer("test", "mcp.json", "github");
+      await stageMcpServer("test", "mcp.json", "filesystem");
 
       const merged = await buildMcpConfig();
 
       expect(merged.mcpServers).toHaveProperty("github");
-      expect(merged.mcpServers["github"]).toEqual(mcpContent.mcpServers["github"]);
+      expect(merged.mcpServers).toHaveProperty("filesystem");
+      expect(merged.mcpServers).not.toHaveProperty("postgres"); // Not staged
     });
 
     it("should sync MCP to claude directory", async () => {
       const mcpContent = {
         mcpServers: {
           filesystem: { command: "npx", args: ["-y", "@mcp/filesystem"] },
+          github: { command: "npx", args: ["-y", "@mcp/github"] },
         },
       };
       await writeFile(join(testRepo.localPath, "mcp.json"), JSON.stringify(mcpContent));
-      await stageMcp("test", "mcp.json");
+      await stageMcpServer("test", "mcp.json", "filesystem");
 
       await syncMcp();
 
@@ -250,9 +248,28 @@ describe("linking", () => {
 
       const written = JSON.parse(await readFile(mcpPath, "utf-8"));
       expect(written.mcpServers).toHaveProperty("filesystem");
+      expect(written.mcpServers).not.toHaveProperty("github"); // Not staged
 
       // Staged should be cleared after sync
       expect(await getStagedMcp()).toHaveLength(0);
+    });
+
+    it("should stage and unstage multiple servers", async () => {
+      const mcpContent = {
+        mcpServers: {
+          server1: { command: "cmd1" },
+          server2: { command: "cmd2" },
+        },
+      };
+      await writeFile(join(testRepo.localPath, "mcp.json"), JSON.stringify(mcpContent));
+
+      await stageMcpServers("test", "mcp.json", ["server1", "server2"]);
+      expect(await getStagedMcp()).toHaveLength(2);
+
+      await unstageMcpServers("test", "mcp.json", ["server1"]);
+      const staged = await getStagedMcp();
+      expect(staged).toHaveLength(1);
+      expect(staged[0]?.serverName).toBe("server2");
     });
   });
 });

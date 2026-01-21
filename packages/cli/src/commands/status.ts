@@ -39,20 +39,33 @@ export const statusCommand = defineCommand({
     for (const [category, items] of Object.entries(grouped)) {
       console.log(`${category}/`);
       for (const selection of items) {
-        const filename = selection.linkedPath.split("/").pop() ?? "";
+        // For skills, extract folder name from assetPath (e.g., "coding" from "skills/coding/SKILL.md")
+        // For others, use the filename from linkedPath
+        const displayName = selection.type === "skill"
+          ? selection.assetPath.split("/").slice(-2, -1)[0] ?? selection.assetPath
+          : (selection.linkedPath.split("/").pop() ?? "");
         const healthStatus = diagnosis.broken.find(
           (b) => b.selection.repoAlias === selection.repoAlias && b.selection.assetPath === selection.assetPath
         );
         const status = healthStatus ? "✗ broken" : "✓";
-        console.log(`  ${filename.padEnd(30)} ${status}`);
+        console.log(`  ${displayName.padEnd(30)} ${status}`);
       }
     }
 
-    // Show staged MCP
+    // Show staged MCP servers
     if (stagedMcp.length > 0) {
-      console.log("mcp/");
-      const mcpList = stagedMcp.map((s) => `${s.repoAlias}:${s.assetPath.split("/").pop()}`).join(", ");
-      console.log(`  (staged) ${mcpList}`);
+      console.log("mcp/ (staged)");
+      // Group by repo for cleaner display
+      const byRepo = new Map<string, string[]>();
+      for (const s of stagedMcp) {
+        if (!byRepo.has(s.repoAlias)) {
+          byRepo.set(s.repoAlias, []);
+        }
+        byRepo.get(s.repoAlias)?.push(s.serverName);
+      }
+      for (const [repo, servers] of byRepo) {
+        console.log(`  ${repo}: ${servers.join(", ")}`);
+      }
     }
 
     console.log();

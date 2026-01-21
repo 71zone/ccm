@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { basename, extname, join, relative } from "node:path";
-import type { Asset, AssetType, DetectionResult } from "./types.js";
+import type { Asset, AssetType, DetectionResult, McpConfig } from "./types.js";
 
 /**
  * Recursively find all files matching a pattern in a directory
@@ -228,4 +228,17 @@ export function getAssetCounts(
     command: result.commands.length,
     mcp: result.mcp.length,
   };
+}
+
+/**
+ * Get individual MCP server names from an MCP config file
+ */
+export async function getMcpServers(filePath: string): Promise<string[]> {
+  try {
+    const content = await readFile(filePath, "utf-8");
+    const config = JSON.parse(content) as McpConfig;
+    return Object.keys(config.mcpServers ?? {});
+  } catch {
+    return [];
+  }
 }

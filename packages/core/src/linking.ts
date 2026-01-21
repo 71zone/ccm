@@ -9,8 +9,8 @@ import {
   getSelections,
   getStagedMcp,
   removeSelection,
-  stageMcp,
-  unstageMcp,
+  stageMcpServer,
+  unstageMcpServer,
 } from "./config.js";
 import {
   getAgentsDir,
@@ -55,6 +55,7 @@ async function ensureDir(dir: string): Promise<void> {
 
 /**
  * Link an asset (create symlink)
+ * Note: MCP assets should use stageMcpServers() instead
  */
 export async function linkAsset(
   repoAlias: string,
@@ -65,15 +66,9 @@ export async function linkAsset(
     throw new Error(`Repository not found: ${repoAlias}`);
   }
 
-  // MCP assets are staged, not directly linked
+  // MCP assets should be staged via stageMcpServers, not linkAsset
   if (asset.type === "mcp") {
-    await stageMcp(repoAlias, asset.path);
-    return {
-      repoAlias,
-      assetPath: asset.path,
-      type: "mcp",
-      linkedPath: "", // MCP doesn't have a direct link
-    };
+    throw new Error("MCP assets should be staged using stageMcpServers() instead of linkAsset()");
   }
 
   const sourcePath = join(repo.localPath, asset.path);
@@ -146,10 +141,9 @@ export async function unlinkAsset(
     return false;
   }
 
-  // MCP assets are just unstaged
+  // MCP assets shouldn't be in selections anymore (they use stagedMcp)
   if (selection.type === "mcp") {
-    await unstageMcp(repoAlias, assetPath);
-    return true;
+    return false;
   }
 
   // Remove the symlink
@@ -276,31 +270,40 @@ export async function cure(): Promise<{ fixed: number; errors: string[] }> {
 }
 
 /**
- * Build merged MCP configuration from staged selections
+ * Build merged MCP configuration from staged server selections
  */
 export async function buildMcpConfig(): Promise<McpConfig> {
   const staged = await getStagedMcp();
   const merged: McpConfig = { mcpServers: {} };
 
-  for (const { repoAlias, assetPath } of staged) {
-    const repo = await getRepository(repoAlias);
-    if (!repo) continue;
+  // Group by repo+file to minimize file reads
+  const fileCache = new Map<string, McpConfig>();
 
-    const sourcePath = join(repo.localPath, assetPath);
-    if (!existsSync(sourcePath)) continue;
+  for (const { repoAlias, assetPath, serverName } of staged) {
+    const cacheKey = `${repoAlias}:${assetPath}`;
 
-    try {
-      const content = await readFile(sourcePath, "utf-8");
-      const config = JSON.parse(content) as McpConfig;
+    // Load file if not cached
+    if (!fileCache.has(cacheKey)) {
+      const repo = await getRepository(repoAlias);
+      if (!repo) continue;
 
-      if (config.mcpServers) {
-        // Merge servers, prefixing with alias to avoid conflicts
-        for (const [name, serverConfig] of Object.entries(config.mcpServers)) {
-          merged.mcpServers[name] = serverConfig;
-        }
+      const sourcePath = join(repo.localPath, assetPath);
+      if (!existsSync(sourcePath)) continue;
+
+      try {
+        const content = await readFile(sourcePath, "utf-8");
+        const config = JSON.parse(content) as McpConfig;
+        fileCache.set(cacheKey, config);
+      } catch {
+        continue;
       }
-    } catch {
-      // Skip invalid JSON files
+    }
+
+    // Get the specific server from cached config
+    const config = fileCache.get(cacheKey);
+    const serverConfig = config?.mcpServers?.[serverName];
+    if (serverConfig) {
+      merged.mcpServers[serverName] = serverConfig;
     }
   }
 
@@ -311,11 +314,11 @@ export async function buildMcpConfig(): Promise<McpConfig> {
  * Get preview of MCP changes
  */
 export async function getMcpPreview(): Promise<{
-  additions: Array<{ name: string; from: string }>;
+  additions: Array<{ name: string; from: string; file: string }>;
   existing: string[];
 }> {
   const staged = await getStagedMcp();
-  const additions: Array<{ name: string; from: string }> = [];
+  const additions: Array<{ name: string; from: string; file: string }> = [];
   const existing: string[] = [];
 
   // Load existing MCP config if present
@@ -330,29 +333,42 @@ export async function getMcpPreview(): Promise<{
     }
   }
 
-  // Get additions from staged
-  for (const { repoAlias, assetPath } of staged) {
-    const repo = await getRepository(repoAlias);
-    if (!repo) continue;
-
-    const sourcePath = join(repo.localPath, assetPath);
-    if (!existsSync(sourcePath)) continue;
-
-    try {
-      const content = await readFile(sourcePath, "utf-8");
-      const config = JSON.parse(content) as McpConfig;
-
-      if (config.mcpServers) {
-        for (const name of Object.keys(config.mcpServers)) {
-          additions.push({ name, from: repoAlias });
-        }
-      }
-    } catch {
-      // Skip invalid
-    }
+  // Get additions from staged servers
+  for (const { repoAlias, assetPath, serverName } of staged) {
+    additions.push({
+      name: serverName,
+      from: repoAlias,
+      file: assetPath.split("/").pop() ?? assetPath,
+    });
   }
 
   return { additions, existing };
+}
+
+/**
+ * Stage multiple MCP servers from a config file
+ */
+export async function stageMcpServers(
+  repoAlias: string,
+  assetPath: string,
+  serverNames: string[]
+): Promise<void> {
+  for (const serverName of serverNames) {
+    await stageMcpServer(repoAlias, assetPath, serverName);
+  }
+}
+
+/**
+ * Unstage multiple MCP servers
+ */
+export async function unstageMcpServers(
+  repoAlias: string,
+  assetPath: string,
+  serverNames: string[]
+): Promise<void> {
+  for (const serverName of serverNames) {
+    await unstageMcpServer(repoAlias, assetPath, serverName);
+  }
 }
 
 /**
