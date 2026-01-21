@@ -64,7 +64,11 @@ log("Staging changes");
 run("git add packages/core/package.json packages/cli/package.json");
 
 log("Creating commit");
-run(`git commit -m "release: v${version}"`);
+try {
+  run(`git commit -m "release: v${version}"`);
+} catch {
+  log("No changes to commit (version already set)");
+}
 
 log("Creating tag");
 run(`git tag v${version}`);
