@@ -1,0 +1,42 @@
+{
+  "name": "@71zone/ccm-core",
+  "version": "0.1.0",
+  "description": "Core library for Claude Code Extension Manager",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "mcp",
+    "agents",
+    "skills"
+  ],
+  "author": "71zone",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/71zone/ccm.git",
+    "directory": "packages/core"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

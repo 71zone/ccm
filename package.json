@@ -1,0 +1,36 @@
+{
+  "name": "ccm-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Claude Code Extension Manager - Manage Claude Code configurations from Git repositories",
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "test": "turbo test",
+    "test:watch": "turbo test:watch",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "clean": "turbo clean && rm -rf node_modules"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "cli",
+    "mcp",
+    "agents",
+    "skills"
+  ],
+  "author": "71zone",
+  "license": "MIT",
+  "packageManager": "pnpm@10.18.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.9",
+    "tsup": "^8.5.1",
+    "turbo": "^2.7.5",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.17"
+  }
+}
