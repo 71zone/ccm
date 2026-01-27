@@ -16,6 +16,25 @@ import type { Repository } from "./types.js";
 import { execAsync } from "./utils.js";
 
 /**
+ * Check if a repository with the same owner/repo already exists
+ */
+async function findExistingRepository(owner: string, repo: string): Promise<Repository | undefined> {
+  const repos = await getRepositories();
+  const normalizedOwner = owner.toLowerCase();
+  const normalizedRepo = repo.toLowerCase();
+
+  return repos.find((r) => {
+    if (r.registryType === "github") {
+      return (
+        r.owner.toLowerCase() === normalizedOwner &&
+        r.repo.toLowerCase() === normalizedRepo
+      );
+    }
+    return false;
+  });
+}
+
+/**
  * Clone a repository and register it
  */
 export async function cloneRepository(url: string): Promise<Repository> {
@@ -25,7 +44,16 @@ export async function cloneRepository(url: string): Promise<Repository> {
   }
 
   const { owner, repo } = parsed;
-  const alias = await generateAlias(owner);
+
+  // Check for duplicate repository (same owner/repo)
+  const existing = await findExistingRepository(owner, repo);
+  if (existing) {
+    throw new Error(
+      `Repository already registered as "${existing.alias}" (${owner}/${repo})`
+    );
+  }
+
+  const alias = await generateAlias(owner, repo);
   const reposDir = getReposDir();
   const localPath = join(reposDir, alias);
 
@@ -49,6 +77,7 @@ export async function cloneRepository(url: string): Promise<Repository> {
 
   const repository: Repository = {
     alias,
+    registryType: "github",
     url: normalizedUrl,
     localPath,
     owner,

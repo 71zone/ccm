@@ -1,5 +1,5 @@
 import { defineCommand } from "citty";
-import { getRepository, type Asset } from "@71zone/ccm-core";
+import { getRepository, isGitHubRepository, type Asset } from "@71zone/ccm-core";
 
 function groupAssetsByType(assets: Asset[]): Record<string, Asset[]> {
   const grouped: Record<string, Asset[]> = {
@@ -50,7 +50,10 @@ export const showCommand = defineCommand({
     }
 
     console.log();
-    console.log(`${repo.alias} (${repo.owner}/${repo.repo})`);
+    const repoDisplay = isGitHubRepository(repo)
+      ? `${repo.alias} (${repo.owner}/${repo.repo})`
+      : `${repo.alias} (local)`;
+    console.log(repoDisplay);
 
     const grouped = groupAssetsByType(repo.assets);
 

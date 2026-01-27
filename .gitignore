@@ -37,3 +37,6 @@ temp/
 
 # Copied README for npm publish
 packages/*/README.md
+
+# Claude Code
+CLAUDE.md

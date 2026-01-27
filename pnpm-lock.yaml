@@ -39,7 +39,11 @@ importers:
         specifier: ^0.2.0
         version: 0.2.0
 
-  packages/core: {}
+  packages/core:
+    dependencies:
+      tinyglobby:
+        specifier: ^0.2.15
+        version: 0.2.15
 
 packages:
 

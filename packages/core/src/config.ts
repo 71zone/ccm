@@ -1,8 +1,27 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
-import { getConfigPath } from "./paths.js";
-import type { CcmConfig, Repository, Selection, StagedMcpServer } from "./types.js";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { getConfigPath, getReposDir } from "./paths.js";
+import type { CcmConfig, GitHubRepository, LocalRepository, Repository, Selection, StagedMcpServer } from "./types.js";
+
+/**
+ * Check if an alias uses the old truncated format
+ * Old format: 4 chars or less, or 4 chars + number (e.g., "acme", "acme2")
+ * New format contains a dot separator (owner.repo)
+ */
+function isLegacyAliasFormat(alias: string): boolean {
+  if (alias.includes(".")) {
+    return false;
+  }
+  return /^[a-z]{1,4}\d*$/.test(alias);
+}
+
+/**
+ * Generate new alias format from owner and repo
+ */
+function generateNewAlias(owner: string, repo: string): string {
+  return `${owner.toLowerCase()}.${repo.toLowerCase()}`;
+}
 
 /**
  * Default empty configuration
@@ -27,6 +46,92 @@ async function ensureConfigDir(): Promise<void> {
 }
 
 /**
+ * Migrate legacy aliases to new owner.repo format
+ * Updates repositories, selections, stagedMcp, and renames directories
+ */
+async function migrateLegacyAliases(config: CcmConfig): Promise<{ migrated: boolean; config: CcmConfig }> {
+  let migrated = false;
+  const aliasMapping = new Map<string, string>(); // old alias -> new alias
+
+  // Find repos that need migration
+  for (const repo of config.repositories) {
+    if (repo.registryType === "github" && isLegacyAliasFormat(repo.alias)) {
+      const githubRepo = repo as GitHubRepository;
+      const newAlias = generateNewAlias(githubRepo.owner, githubRepo.repo);
+
+      // Check if new alias already exists (handle collision)
+      let finalAlias = newAlias;
+      let counter = 2;
+      while (config.repositories.some((r) => r.alias === finalAlias && r !== repo)) {
+        finalAlias = `${newAlias}${counter}`;
+        counter++;
+      }
+
+      aliasMapping.set(repo.alias, finalAlias);
+      migrated = true;
+    }
+  }
+
+  if (!migrated) {
+    return { migrated: false, config };
+  }
+
+  // Update repositories
+  const reposDir = getReposDir();
+  for (const repo of config.repositories) {
+    const newAlias = aliasMapping.get(repo.alias);
+    if (newAlias) {
+      const oldPath = repo.localPath;
+      const newPath = join(reposDir, newAlias);
+
+      // Try to rename directory if it exists at old path
+      if (existsSync(oldPath) && !existsSync(newPath)) {
+        try {
+          await rename(oldPath, newPath);
+          repo.localPath = newPath;
+        } catch {
+          // If rename fails, keep the old path
+        }
+      } else if (existsSync(newPath)) {
+        // New path already exists, use it
+        repo.localPath = newPath;
+      }
+
+      repo.alias = newAlias;
+    }
+  }
+
+  // Update selections
+  config.selections = config.selections.map((selection) => {
+    const newAlias = aliasMapping.get(selection.repoAlias);
+    if (newAlias) {
+      // Also update linkedPath if it contains the old alias
+      let newLinkedPath = selection.linkedPath;
+      const oldAlias = selection.repoAlias;
+      if (selection.linkedPath.includes(oldAlias)) {
+        newLinkedPath = selection.linkedPath.replace(
+          new RegExp(`${oldAlias}-`, "g"),
+          `${newAlias}-`
+        );
+      }
+      return { ...selection, repoAlias: newAlias, linkedPath: newLinkedPath };
+    }
+    return selection;
+  });
+
+  // Update stagedMcp
+  config.stagedMcp = config.stagedMcp.map((staged) => {
+    const newAlias = aliasMapping.get(staged.repoAlias);
+    if (newAlias) {
+      return { ...staged, repoAlias: newAlias };
+    }
+    return staged;
+  });
+
+  return { migrated: true, config };
+}
+
+/**
  * Load the CCM configuration
  */
 export async function loadConfig(): Promise<CcmConfig> {
@@ -39,12 +144,32 @@ export async function loadConfig(): Promise<CcmConfig> {
   try {
     const content = await readFile(configPath, "utf-8");
     const parsed = JSON.parse(content);
-    // Ensure all required fields exist with defaults (for backwards compatibility)
-    return {
-      repositories: parsed.repositories ?? [],
+
+    // Migrate old repositories to include registryType
+    const migratedRepos = (parsed.repositories ?? []).map((repo: any) => {
+      if (!repo.registryType) {
+        // Old repos are always GitHub repos
+        return { ...repo, registryType: "github" as const };
+      }
+      return repo;
+    });
+
+    let config: CcmConfig = {
+      repositories: migratedRepos,
       selections: parsed.selections ?? [],
       stagedMcp: parsed.stagedMcp ?? [],
     };
+
+    // Migrate legacy aliases to new format
+    const { migrated, config: migratedConfig } = await migrateLegacyAliases(config);
+    if (migrated) {
+      config = migratedConfig;
+      // Save migrated config
+      await ensureConfigDir();
+      await writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
+    }
+
+    return config;
   } catch {
     return createDefaultConfig();
   }
@@ -258,7 +383,8 @@ export async function updateRepository(
     return undefined;
   }
 
-  config.repositories[index] = { ...repo, ...updates };
+  // Type assertion needed because Partial<Repository> doesn't preserve discriminated union
+  config.repositories[index] = { ...repo, ...updates } as Repository;
   await saveConfig(config);
   return config.repositories[index];
 }

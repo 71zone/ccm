@@ -9,6 +9,7 @@ import {
   linkAsset,
   getMcpServers,
   stageMcpServers,
+  isGitHubRepository,
   type Asset,
   type Repository,
 } from "@71zone/ccm-core";
@@ -101,7 +102,7 @@ export const useCommand = defineCommand({
         message: "Select a repository",
         options: repos.map((r) => ({
           value: r.alias,
-          label: `${r.alias} (${r.owner}/${r.repo})`,
+          label: isGitHubRepository(r) ? `${r.alias} (${r.owner}/${r.repo})` : `${r.alias} (local)`,
           hint: `${r.assets.length} assets`,
         })),
       });

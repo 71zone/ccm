@@ -122,6 +122,77 @@ model: claude-3
       expect(result.commands).toHaveLength(0);
       expect(result.mcp).toHaveLength(0);
     });
+
+    it("should detect agents in deeply nested agents/ folders", async () => {
+      // Create nested structure: claude/agents/
+      const nestedAgentsDir = join(TEST_REPO_DIR, "claude", "agents");
+      await mkdir(nestedAgentsDir, { recursive: true });
+      await writeFile(join(nestedAgentsDir, "deep-agent.md"), "# Deep Agent");
+
+      // Also create root-level agents
+      const rootAgentsDir = join(TEST_REPO_DIR, "agents");
+      await mkdir(rootAgentsDir);
+      await writeFile(join(rootAgentsDir, "root-agent.md"), "# Root Agent");
+
+      const result = await detectAssets(TEST_REPO_DIR);
+
+      expect(result.agents).toHaveLength(2);
+      expect(result.agents.map((a) => a.name).sort()).toEqual(["deep-agent", "root-agent"]);
+    });
+
+    it("should detect skills in deeply nested skills/ folders", async () => {
+      // Create nested structure: src/claude/skills/coding/SKILL.md
+      const nestedSkillDir = join(TEST_REPO_DIR, "src", "claude", "skills", "nested-coding");
+      await mkdir(nestedSkillDir, { recursive: true });
+      await writeFile(join(nestedSkillDir, "SKILL.md"), "# Nested Coding Skill");
+
+      // Also create root-level skills
+      const rootSkillDir = join(TEST_REPO_DIR, "skills", "root-coding");
+      await mkdir(rootSkillDir, { recursive: true });
+      await writeFile(join(rootSkillDir, "SKILL.md"), "# Root Coding Skill");
+
+      const result = await detectAssets(TEST_REPO_DIR);
+
+      expect(result.skills).toHaveLength(2);
+      expect(result.skills.map((s) => s.name).sort()).toEqual(["nested-coding", "root-coding"]);
+    });
+
+    it("should detect commands in deeply nested commands/ folders", async () => {
+      // Create nested structure: plugins/dev/commands/
+      const nestedCommandsDir = join(TEST_REPO_DIR, "plugins", "dev", "commands");
+      await mkdir(nestedCommandsDir, { recursive: true });
+      await writeFile(join(nestedCommandsDir, "deep-deploy.md"), "# Deep Deploy");
+
+      // Also create root-level commands
+      const rootCommandsDir = join(TEST_REPO_DIR, "commands");
+      await mkdir(rootCommandsDir);
+      await writeFile(join(rootCommandsDir, "root-deploy.md"), "# Root Deploy");
+
+      const result = await detectAssets(TEST_REPO_DIR);
+
+      expect(result.commands).toHaveLength(2);
+      expect(result.commands.map((c) => c.name).sort()).toEqual(["deep-deploy", "root-deploy"]);
+    });
+
+    it("should detect MCP configs at any depth", async () => {
+      // Create nested MCP config
+      const nestedDir = join(TEST_REPO_DIR, "config", "mcp");
+      await mkdir(nestedDir, { recursive: true });
+      await writeFile(
+        join(nestedDir, "servers-mcp.json"),
+        JSON.stringify({ mcpServers: { nested: {} } })
+      );
+
+      // Also create root-level MCP config
+      await writeFile(
+        join(TEST_REPO_DIR, "mcp.json"),
+        JSON.stringify({ mcpServers: { root: {} } })
+      );
+
+      const result = await detectAssets(TEST_REPO_DIR);
+
+      expect(result.mcp).toHaveLength(2);
+    });
   });
 
   describe("flattenAssets", () => {

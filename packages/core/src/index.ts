@@ -5,13 +5,20 @@ export type {
   CcmConfig,
   DetectionResult,
   DiagnosisResult,
+  GitHubRepository,
   LinkHealth,
+  LocalRepository,
   McpConfig,
   McpServerConfig,
+  RegistryType,
   Repository,
   Selection,
   StagedMcpServer,
+  StrayAsset,
 } from "./types.js";
+
+// Type guards
+export { isGitHubRepository, isLocalRepository } from "./types.js";
 
 // Paths
 export {
@@ -21,6 +28,7 @@ export {
   getConfigDir,
   getConfigPath,
   getDataDir,
+  getLocalVaultDir,
   getMcpConfigPath,
   getReposDir,
   getSkillsDir,
@@ -47,7 +55,7 @@ export {
 } from "./config.js";
 
 // Alias utilities
-export { generateAlias, getNamespacedFilename, parseGitHubUrl } from "./alias.js";
+export { generateAlias, getNamespacedFilename, isLegacyAlias, parseGitHubUrl } from "./alias.js";
 
 // Asset detection
 export { detectAssets, flattenAssets, getAssetCounts, getMcpServers } from "./detection.js";
@@ -73,6 +81,13 @@ export {
   unlinkAsset,
   unstageMcpServers,
 } from "./linking.js";
+
+// Stray asset detection
+export {
+  isExternalSymlink,
+  isSymlinkToCcmVault,
+  scanStrayAssets,
+} from "./stray.js";
 
 // Utilities
 export { execAsync } from "./utils.js";

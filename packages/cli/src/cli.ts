@@ -3,6 +3,7 @@ import { addCommand } from "./commands/add.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { listCommand } from "./commands/list.js";
 import { mcpCommand } from "./commands/mcp.js";
+import { migrateCommand } from "./commands/migrate.js";
 import { removeCommand } from "./commands/remove.js";
 import { showCommand } from "./commands/show.js";
 import { statusCommand } from "./commands/status.js";
@@ -20,6 +21,7 @@ const main = defineCommand({
     add: addCommand,
     list: listCommand,
     ls: listCommand, // alias
+    migrate: migrateCommand,
     remove: removeCommand,
     rm: removeCommand, // alias
     update: updateCommand,

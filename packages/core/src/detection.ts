@@ -1,38 +1,8 @@
 import { existsSync } from "node:fs";
-import { readFile, readdir, stat } from "node:fs/promises";
-import { basename, extname, join, relative } from "node:path";
+import { readFile } from "node:fs/promises";
+import { basename, dirname, extname, join, relative } from "node:path";
+import { glob } from "tinyglobby";
 import type { Asset, AssetType, DetectionResult, McpConfig } from "./types.js";
-
-/**
- * Recursively find all files matching a pattern in a directory
- */
-async function findFiles(dir: string, pattern: RegExp): Promise<string[]> {
-  const results: string[] = [];
-
-  if (!existsSync(dir)) {
-    return results;
-  }
-
-  const entries = await readdir(dir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    const fullPath = join(dir, entry.name);
-
-    // Skip hidden directories and node_modules
-    if (entry.name.startsWith(".") || entry.name === "node_modules") {
-      continue;
-    }
-
-    if (entry.isDirectory()) {
-      const subResults = await findFiles(fullPath, pattern);
-      results.push(...subResults);
-    } else if (entry.isFile() && pattern.test(entry.name)) {
-      results.push(fullPath);
-    }
-  }
-
-  return results;
-}
 
 /**
  * Check if a file has YAML frontmatter with agent-like fields
@@ -83,56 +53,41 @@ function createAsset(repoPath: string, filePath: string, type: AssetType): Asset
 
 /**
  * Detect agents in a repository
- * Pattern: * /agents/*.md
+ * Scans for any 'agents' folder at any depth and finds .md files within
+ * Also detects .md files with agent frontmatter anywhere in the repo
  */
 async function detectAgents(repoPath: string): Promise<Asset[]> {
   const assets: Asset[] = [];
+  const seenPaths = new Set<string>();
 
-  // Look for agents directory
-  const agentsDir = join(repoPath, "agents");
-  if (existsSync(agentsDir)) {
-    const files = await findFiles(agentsDir, /\.md$/i);
-    for (const file of files) {
+  // Find all .md files inside any 'agents' folder at any depth
+  const agentFiles = await glob("**/agents/**/*.md", {
+    cwd: repoPath,
+    ignore: ["**/node_modules/**", "**/.*/**"],
+    absolute: true,
+  });
+
+  for (const file of agentFiles) {
+    const relativePath = relative(repoPath, file);
+    if (!seenPaths.has(relativePath)) {
+      seenPaths.add(relativePath);
       assets.push(createAsset(repoPath, file, "agent"));
     }
   }
 
-  // Also check for .md files with agent frontmatter in root
-  const rootMdFiles = await findFiles(repoPath, /\.md$/i);
-  for (const file of rootMdFiles) {
-    // Skip if already in agents directory
-    if (file.includes("/agents/")) continue;
+  // Also check for .md files with agent frontmatter anywhere (not in agents folders)
+  const allMdFiles = await glob("**/*.md", {
+    cwd: repoPath,
+    ignore: ["**/node_modules/**", "**/.*/**", "**/agents/**"],
+    absolute: true,
+  });
 
+  for (const file of allMdFiles) {
     if (await hasAgentFrontmatter(file)) {
-      assets.push(createAsset(repoPath, file, "agent"));
-    }
-  }
-
-  return assets;
-}
-
-/**
- * Detect skills in a repository
- * Pattern: * /skills/* /SKILL.md
- */
-async function detectSkills(repoPath: string): Promise<Asset[]> {
-  const assets: Asset[] = [];
-
-  // Look for skills directory
-  const skillsDir = join(repoPath, "skills");
-  if (existsSync(skillsDir)) {
-    const entries = await readdir(skillsDir, { withFileTypes: true });
-
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const skillFile = join(skillsDir, entry.name, "SKILL.md");
-        if (existsSync(skillFile)) {
-          assets.push({
-            type: "skill",
-            path: relative(repoPath, skillFile),
-            name: entry.name,
-          });
-        }
+      const relativePath = relative(repoPath, file);
+      if (!seenPaths.has(relativePath)) {
+        seenPaths.add(relativePath);
+        assets.push(createAsset(repoPath, file, "agent"));
       }
     }
   }
@@ -141,17 +96,57 @@ async function detectSkills(repoPath: string): Promise<Asset[]> {
 }
 
 /**
+ * Detect skills in a repository
+ * Scans for any 'skills' folder at any depth and finds SKILL.md files within subdirectories
+ */
+async function detectSkills(repoPath: string): Promise<Asset[]> {
+  const assets: Asset[] = [];
+  const seenPaths = new Set<string>();
+
+  // Find all SKILL.md files inside any 'skills' folder at any depth
+  // Pattern: **/skills/*/SKILL.md (skill name is the parent directory)
+  const skillFiles = await glob("**/skills/*/SKILL.md", {
+    cwd: repoPath,
+    ignore: ["**/node_modules/**", "**/.*/**"],
+    absolute: true,
+  });
+
+  for (const file of skillFiles) {
+    const relativePath = relative(repoPath, file);
+    if (!seenPaths.has(relativePath)) {
+      seenPaths.add(relativePath);
+      // Skill name is the parent directory name
+      const skillName = basename(dirname(file));
+      assets.push({
+        type: "skill",
+        path: relativePath,
+        name: skillName,
+      });
+    }
+  }
+
+  return assets;
+}
+
+/**
  * Detect commands in a repository
- * Pattern: * /commands/*.md
+ * Scans for any 'commands' folder at any depth and finds .md files within
  */
 async function detectCommands(repoPath: string): Promise<Asset[]> {
   const assets: Asset[] = [];
+  const seenPaths = new Set<string>();
 
-  // Look for commands directory
-  const commandsDir = join(repoPath, "commands");
-  if (existsSync(commandsDir)) {
-    const files = await findFiles(commandsDir, /\.md$/i);
-    for (const file of files) {
+  // Find all .md files inside any 'commands' folder at any depth
+  const commandFiles = await glob("**/commands/**/*.md", {
+    cwd: repoPath,
+    ignore: ["**/node_modules/**", "**/.*/**"],
+    absolute: true,
+  });
+
+  for (const file of commandFiles) {
+    const relativePath = relative(repoPath, file);
+    if (!seenPaths.has(relativePath)) {
+      seenPaths.add(relativePath);
       assets.push(createAsset(repoPath, file, "command"));
     }
   }
@@ -165,13 +160,22 @@ async function detectCommands(repoPath: string): Promise<Asset[]> {
  */
 async function detectMcp(repoPath: string): Promise<Asset[]> {
   const assets: Asset[] = [];
+  const seenPaths = new Set<string>();
 
   // Find all JSON files with "mcp" in the name
-  const jsonFiles = await findFiles(repoPath, /mcp.*\.json$/i);
+  const mcpFiles = await glob("**/*mcp*.json", {
+    cwd: repoPath,
+    ignore: ["**/node_modules/**", "**/.*/**"],
+    absolute: true,
+  });
 
-  for (const file of jsonFiles) {
+  for (const file of mcpFiles) {
     if (await isMcpConfig(file)) {
-      assets.push(createAsset(repoPath, file, "mcp"));
+      const relativePath = relative(repoPath, file);
+      if (!seenPaths.has(relativePath)) {
+        seenPaths.add(relativePath);
+        assets.push(createAsset(repoPath, file, "mcp"));
+      }
     }
   }
 
@@ -180,8 +184,8 @@ async function detectMcp(repoPath: string): Promise<Asset[]> {
   for (const p of commonPaths) {
     const fullPath = join(repoPath, p);
     if (existsSync(fullPath) && (await isMcpConfig(fullPath))) {
-      // Avoid duplicates
-      if (!assets.some((a) => a.path === p)) {
+      if (!seenPaths.has(p)) {
+        seenPaths.add(p);
         assets.push(createAsset(repoPath, fullPath, "mcp"));
       }
     }

@@ -4,6 +4,11 @@
 export type AssetType = "agent" | "skill" | "command" | "mcp";
 
 /**
+ * Registry types for repositories
+ */
+export type RegistryType = "github" | "local";
+
+/**
  * An asset detected in a repository
  */
 export interface Asset {
@@ -16,11 +21,36 @@ export interface Asset {
 }
 
 /**
- * A registered repository
+ * A stray asset found in ~/.claude/ that is not managed by CCM
  */
-export interface Repository {
+export interface StrayAsset extends Asset {
+  /** Full path to file in ~/.claude/ */
+  fullPath: string;
+  /** True if symlink pointing outside CCM vault */
+  isExternalSymlink: boolean;
+  /** Original source folder name (for assets flattened from a directory symlink) */
+  sourceFolder?: string;
+}
+
+/**
+ * Base properties shared by all repository types
+ */
+interface BaseRepository {
   /** Short alias for the repository */
   alias: string;
+  /** Registry type discriminator */
+  registryType: RegistryType;
+  /** Detected assets */
+  assets: Asset[];
+  /** Last updated timestamp */
+  updatedAt: string;
+}
+
+/**
+ * A GitHub repository with remote URL and local clone
+ */
+export interface GitHubRepository extends BaseRepository {
+  registryType: "github";
   /** Full GitHub URL */
   url: string;
   /** Local path where repo is cloned */
@@ -29,10 +59,34 @@ export interface Repository {
   owner: string;
   /** Repository name */
   repo: string;
-  /** Detected assets */
-  assets: Asset[];
-  /** Last updated timestamp */
-  updatedAt: string;
+}
+
+/**
+ * A local-only repository without GitHub remote
+ */
+export interface LocalRepository extends BaseRepository {
+  registryType: "local";
+  /** Local path to the repository */
+  localPath: string;
+}
+
+/**
+ * A registered repository (discriminated union)
+ */
+export type Repository = GitHubRepository | LocalRepository;
+
+/**
+ * Type guard to check if a repository is a GitHub repository
+ */
+export function isGitHubRepository(repo: Repository): repo is GitHubRepository {
+  return repo.registryType === "github";
+}
+
+/**
+ * Type guard to check if a repository is a local repository
+ */
+export function isLocalRepository(repo: Repository): repo is LocalRepository {
+  return repo.registryType === "local";
 }
 
 /**

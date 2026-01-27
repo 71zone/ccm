@@ -34,6 +34,14 @@ export function getReposDir(): string {
 }
 
 /**
+ * Get the local vault directory path
+ * ~/.local/share/ccm/local/
+ */
+export function getLocalVaultDir(): string {
+  return join(getDataDir(), "local");
+}
+
+/**
  * Get the Claude configuration directory path
  * ~/.claude/
  */

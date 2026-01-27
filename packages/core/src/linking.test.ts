@@ -34,11 +34,12 @@ const { addRepository, addSelection, getSelections, stageMcpServer, getStagedMcp
 
 describe("linking", () => {
   const testRepo: Repository = {
-    alias: "test",
-    url: "https://github.com/test/repo",
-    localPath: join(TEST_REPOS_DIR, "test"),
-    owner: "test",
-    repo: "repo",
+    alias: "testowner.testrepo",
+    registryType: "github",
+    url: "https://github.com/testowner/testrepo",
+    localPath: join(TEST_REPOS_DIR, "testowner.testrepo"),
+    owner: "testowner",
+    repo: "testrepo",
     assets: [],
     updatedAt: "2024-01-01T00:00:00.000Z",
   };
@@ -79,9 +80,9 @@ describe("linking", () => {
 
       const asset: Asset = { type: "agent", path: "agents/coder.md", name: "coder" };
 
-      const selection = await linkAsset("test", asset);
+      const selection = await linkAsset("testowner.testrepo", asset);
 
-      expect(selection.repoAlias).toBe("test");
+      expect(selection.repoAlias).toBe("testowner.testrepo");
       expect(selection.assetPath).toBe("agents/coder.md");
       expect(selection.type).toBe("agent");
       expect(existsSync(selection.linkedPath)).toBe(true);
@@ -98,9 +99,9 @@ describe("linking", () => {
 
       const asset: Asset = { type: "skill", path: "skills/coding/SKILL.md", name: "coding" };
 
-      const selection = await linkAsset("test", asset);
+      const selection = await linkAsset("testowner.testrepo", asset);
 
-      expect(selection.linkedPath).toContain("test-coding");
+      expect(selection.linkedPath).toContain("testowner.testrepo-coding");
       expect(selection.linkedPath).toContain("SKILL.md");
       expect(existsSync(selection.linkedPath)).toBe(true);
     });
@@ -112,13 +113,13 @@ describe("linking", () => {
 
       const asset: Asset = { type: "mcp", path: "mcp.json", name: "mcp" };
 
-      await expect(linkAsset("test", asset)).rejects.toThrow("MCP assets should be staged");
+      await expect(linkAsset("testowner.testrepo", asset)).rejects.toThrow("MCP assets should be staged");
     });
 
     it("should throw error for non-existent source", async () => {
       const asset: Asset = { type: "agent", path: "nonexistent.md", name: "nonexistent" };
 
-      await expect(linkAsset("test", asset)).rejects.toThrow("Asset not found");
+      await expect(linkAsset("testowner.testrepo", asset)).rejects.toThrow("Asset not found");
     });
 
     it("should throw error for non-existent repo", async () => {
@@ -136,11 +137,11 @@ describe("linking", () => {
       await writeFile(join(agentsDir, "coder.md"), "# Coder");
 
       const asset: Asset = { type: "agent", path: "agents/coder.md", name: "coder" };
-      const selection = await linkAsset("test", asset);
+      const selection = await linkAsset("testowner.testrepo", asset);
 
       expect(existsSync(selection.linkedPath)).toBe(true);
 
-      const success = await unlinkAsset("test", "agents/coder.md");
+      const success = await unlinkAsset("testowner.testrepo", "agents/coder.md");
 
       expect(success).toBe(true);
       expect(existsSync(selection.linkedPath)).toBe(false);
@@ -148,7 +149,7 @@ describe("linking", () => {
     });
 
     it("should return false for non-existent selection", async () => {
-      const success = await unlinkAsset("test", "nonexistent.md");
+      const success = await unlinkAsset("testowner.testrepo", "nonexistent.md");
       expect(success).toBe(false);
     });
   });
@@ -160,7 +161,7 @@ describe("linking", () => {
       await writeFile(join(agentsDir, "coder.md"), "# Coder");
 
       const asset: Asset = { type: "agent", path: "agents/coder.md", name: "coder" };
-      await linkAsset("test", asset);
+      await linkAsset("testowner.testrepo", asset);
 
       const result = await diagnose();
 
@@ -174,7 +175,7 @@ describe("linking", () => {
       await writeFile(join(agentsDir, "coder.md"), "# Coder");
 
       const asset: Asset = { type: "agent", path: "agents/coder.md", name: "coder" };
-      const selection = await linkAsset("test", asset);
+      const selection = await linkAsset("testowner.testrepo", asset);
 
       // Delete the source file to break the symlink
       await rm(join(agentsDir, "coder.md"));
@@ -195,7 +196,7 @@ describe("linking", () => {
       await writeFile(join(agentsDir, "coder.md"), "# Coder");
 
       const asset: Asset = { type: "agent", path: "agents/coder.md", name: "coder" };
-      const selection = await linkAsset("test", asset);
+      const selection = await linkAsset("testowner.testrepo", asset);
 
       // Break the symlink
       await rm(join(agentsDir, "coder.md"));
@@ -221,8 +222,8 @@ describe("linking", () => {
       await writeFile(join(testRepo.localPath, "mcp.json"), JSON.stringify(mcpContent));
 
       // Stage only github and filesystem
-      await stageMcpServer("test", "mcp.json", "github");
-      await stageMcpServer("test", "mcp.json", "filesystem");
+      await stageMcpServer("testowner.testrepo", "mcp.json", "github");
+      await stageMcpServer("testowner.testrepo", "mcp.json", "filesystem");
 
       const merged = await buildMcpConfig();
 
@@ -239,7 +240,7 @@ describe("linking", () => {
         },
       };
       await writeFile(join(testRepo.localPath, "mcp.json"), JSON.stringify(mcpContent));
-      await stageMcpServer("test", "mcp.json", "filesystem");
+      await stageMcpServer("testowner.testrepo", "mcp.json", "filesystem");
 
       await syncMcp();
 
@@ -263,10 +264,10 @@ describe("linking", () => {
       };
       await writeFile(join(testRepo.localPath, "mcp.json"), JSON.stringify(mcpContent));
 
-      await stageMcpServers("test", "mcp.json", ["server1", "server2"]);
+      await stageMcpServers("testowner.testrepo", "mcp.json", ["server1", "server2"]);
       expect(await getStagedMcp()).toHaveLength(2);
 
-      await unstageMcpServers("test", "mcp.json", ["server1"]);
+      await unstageMcpServers("testowner.testrepo", "mcp.json", ["server1"]);
       const staged = await getStagedMcp();
       expect(staged).toHaveLength(1);
       expect(staged[0]?.serverName).toBe("server2");
