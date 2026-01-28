@@ -1,6 +1,6 @@
 {
   "name": "@71zone/ccm-core",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Core library for Claude Code Extension Manager",
   "type": "module",
   "exports": {
